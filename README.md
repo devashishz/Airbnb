@@ -48,6 +48,9 @@ Built-in lineage and observability ensure reliable pipelines.
 
 Visualization
 
-Streamlit dashboard built on top of Snowflake queries & dbt models.
+The interactive dashboard is built using **Streamlit** on top of dbt models and Snowflake data.  
+It provides insights into KPIs, revenue trends, and customer analytics.
+
+👉 [View Dashboard (PDF)](streamlit.pdf)
 
 Business-friendly UI for KPIs and trend monitoring.
