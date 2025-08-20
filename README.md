@@ -1,5 +1,4 @@
 🚀 AIRBNB E2E Pipeline
-📌 Overview
 
 This project is an end-to-end modern data pipeline that builds a scalable, maintainable, and production-ready data engineering workflows.
 
