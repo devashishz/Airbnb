@@ -51,6 +51,6 @@ Visualization
 The interactive dashboard is built using **Streamlit** on top of dbt models and Snowflake data.  
 It provides insights into KPIs, revenue trends, and customer analytics.
 
-👉 [View Dashboard (PDF)](streamlit.pdf)
+👉 [View Dashboard (PDF)]([streamlit.pdf](https://github.com/devashishz/Airbnb/blob/main/Streamlit.pdf])
 
 Business-friendly UI for KPIs and trend monitoring.
