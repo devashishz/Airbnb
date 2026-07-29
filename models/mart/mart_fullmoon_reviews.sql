@@ -1,23 +1,33 @@
-{{ config(
-  materialized = 'table',
-) }}
+{{
+    config(
+        materialized='table'
+    )
+}}
 
-WITH fct_reviews AS (
-    SELECT * FROM {{ ref('fct_reviews') }}
+with fct_reviews as (
+    select * from {{ ref('fct_reviews') }}
 ),
-full_moon_dates AS (
-    SELECT * FROM {{ ref('seed_full_moon_dates') }}
+
+full_moon_dates as (
+    select * from {{ ref('seed_full_moon_dates') }}
 )
 
-SELECT
-  r.*,
-  CASE
-    WHEN fm.full_moon_date IS NULL THEN 'not full moon'
-    ELSE 'full moon'
-  END AS is_full_moon
-FROM
-  fct_reviews
-  r
-  LEFT JOIN full_moon_dates
-  fm
-  ON (TO_DATE(r.review_date) = DATEADD(DAY, 1, fm.full_moon_date))
+select
+    r.review_id,
+    r.listing_id,
+    r.review_date,
+    r.reviewer_name,
+    r.review_text,
+    r.review_sentiment,
+    
+    -- The Fix: Safely evaluating the presence of a full moon match
+    case 
+        when fm.full_moon_date is null then 'not full moon'
+        else 'full moon'
+    end as is_full_moon
+
+from fct_reviews as r
+left join full_moon_dates as fm
+    -- Senior Move: Explicitly casting both sides to DATE ensures 
+    -- time components don't break the join condition.
+    on date(r.review_date) = date(fm.full_moon_date)
