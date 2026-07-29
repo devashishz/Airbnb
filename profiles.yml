@@ -1,0 +1,6 @@
+airbnb_prod:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: airbnb_local.duckdb

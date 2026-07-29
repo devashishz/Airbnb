@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: mart_fullmoon_reviews
+    description: "Review data flagged with full moon dates for sentiment analysis."
+    columns:
+      - name: review_id
+        tests:
+          - unique
+          - not_null
+      
+      - name: is_full_moon
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['full moon', 'not full moon']
+              
+  # We also test fct_reviews to ensure our incremental logic is sound
+  - name: fct_reviews
+    tests:
+      - dbt_expectations.expect_table_row_count_to_equal_other_table:
+          compare_model: ref("mart_fullmoon_reviews")
