@@ -1,4 +1,4 @@
-airbnb_local:
+airbnb_prod:
   target: dev
   outputs:
     dev:
