@@ -1,55 +1,7 @@
 🚀 AIRBNB E2E Pipeline
 
-This project is an end-to-end modern data pipeline that builds a scalable, maintainable, and production-ready data engineering workflows.
+<img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/757ef556-8d75-4580-9d8a-65eb5c9a6bf8" />
 
-It integrates:
-
-Snowflake as the cloud data warehouse
-
-dbt (Data Build Tool) for transformation, modeling, and testing
-
-Dagster for orchestration and observability of data pipelines
-
-Streamlit for interactive dashboards and insights
-
-Best practices in modularity, version control, and CI/CD
-
-The goal of this project is to show how raw data can be ingested, transformed, orchestrated, and visualized in a seamless way using DBT on Snowflake.
-
-🛠️ Tech Stack
-
-Snowflake – Data warehouse
-
-dbt – SQL-based transformations, tests, and documentation
-
-Dagster – Orchestration, observability, and lineage tracking
-
-Streamlit – Lightweight data app framework for building dashboards
-
-Git & GitHub – Version control and collaboration
-
-🔄 Architecture
-
-Ingestion Layer
-
-Raw data loaded into Snowflake staging tables.
-
-Transformation Layer
-
-dbt models structure the data into staging → intermediate → mart layers.
-
-Data quality checks with dbt tests (uniqueness, null checks, referential integrity).
-
-Orchestration & Monitoring
-
-Dagster schedules and orchestrates dbt runs.
-
-Built-in lineage and observability ensure reliable pipelines.
-
-Visualization
-
-The interactive dashboard is built using **Streamlit** on top of dbt models and Snowflake data.  
-It provides insights into KPIs, revenue trends, and customer analytics.
 
 👉 [View Dashboard (PDF)](streamlit.pdf](https://github.com/devashishz/Airbnb/blob/main/Streamlit.pdf)
 
