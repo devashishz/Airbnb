@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: raw_airbnb
+    description: "Raw Airbnb ingestion layer from S3 to Snowflake"
+    database: raw_database_name # Update to your actual Snowflake database
+    schema: raw_schema_name     # Update to your actual Snowflake schema
+    tables:
+      - name: reviews
+        description: "Raw review data left by guests"
+      - name: listings
+        description: "Raw listing configurations and host mapping"
+      - name: hosts
+        description: "Raw host demographic data"
