@@ -1,15 +1,11 @@
 with source as (
-    select * from {{ source('raw_airbnb', 'hosts') }}
+    select * from read_csv_auto('s3://dbt-datasets/hosts.csv')
 )
 
 select
-    host_id,
-    
-    -- Handle missing data at the source
-    coalesce(host_name, 'Unknown') as host_name,
-    
+    id as host_id,
+    coalesce(name, 'Unknown') as host_name,
     is_superhost,
     created_at,
     updated_at
-
 from source

@@ -11,8 +11,6 @@ with stg_reviews as (
 )
 
 select
-    -- Create a deterministic surrogate primary key using dbt_utils
-    -- This proves you know how to handle raw data that lacks a reliable unique ID
     {{ dbt_utils.generate_surrogate_key([
         'listing_id', 
         'review_date', 

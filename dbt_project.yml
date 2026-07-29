@@ -26,11 +26,9 @@ models:
       +materialized: ephemeral
 
     # Marts: Final consumption layer.
-    marts:
+    mart:
       +materialized: table
-      +schema: marts
-      +post-hook:
-        - "GRANT SELECT ON {{ this }} TO ROLE REPORTER"
+      +schema: mart
       
       core:
         fct_reviews:
