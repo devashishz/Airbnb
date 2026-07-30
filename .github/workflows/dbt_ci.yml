@@ -8,6 +8,16 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      pipeline_run_id:
+        description: 'ADF Pipeline Run ID'
+        required: false
+        type: string
+      load_date:
+        description: 'Date for partition processing'
+        required: false
+        type: string
 
 jobs:
   build-and-test:
