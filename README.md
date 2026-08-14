@@ -1,4 +1,4 @@
-# 📦 Olist E-Commerce Lakehouse & BI Platform
+# 📦 Olist E-Commerce Lakehouse 
 
 An end-to-end, local data engineering and analytics platform built on the Brazilian E-Commerce public dataset. This project processes raw transactional records through a Medallion Architecture using **DuckDB** and **dbt**, serving interactive logistics and revenue insights via **Streamlit** and **Altair**.
 
