@@ -1,0 +1,44 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: "Master fact table representing one row per order, enriched with aggregated payment and item metrics."
+    columns:
+      - name: order_id
+        description: "Primary key of the order."
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: order_status
+        description: "The current state of the order."
+        tests:
+          - accepted_values:
+              arguments:
+                values: 
+                  - delivered
+                  - shipped
+                  - canceled
+                  - unavailable
+                  - invoiced
+                  - processing
+                  - created
+                  - approved
+
+  - name: int_order_items_aggregated
+    description: "Intermediate model rolling up line items to the order grain."
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+
+  - name: int_order_payments_aggregated
+    description: "Intermediate model rolling up payment sequences to the order grain."
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null

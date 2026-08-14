@@ -1,7 +1,6 @@
-
-name: 'airbnb_analytics_core'
-version: '2.0.0'
-profile: 'airbnb_prod'
+name: 'olist_ecommerce'
+version: '1.0.0'
+profile: 'olist_prod'
 
 model-paths: ["models"]
 analysis-paths: ["analyses"]
@@ -15,23 +14,12 @@ clean-targets:
   - "dbt_packages"
 
 models:
-  airbnb_analytics_core:
-    # Staging: Light transformations, casting, renaming.
+  olist_ecommerce:
     staging:
       +materialized: view
-      +schema: staging
-    
-    # Intermediate: Complex joins and business logic preparation.
+      +schema: silver
     intermediate:
       +materialized: ephemeral
-
-    # Marts: Final consumption layer.
     mart:
       +materialized: table
-      +schema: mart
-      
-      core:
-        fct_reviews:
-          +materialized: incremental
-          +unique_key: review_id
-          +on_schema_change: "append_new_columns"
+      +schema: gold

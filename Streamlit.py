@@ -2,223 +2,222 @@ import streamlit as st
 import pandas as pd
 import duckdb
 import altair as alt
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
-import logging
 
 st.set_page_config(
-    page_title="Airbnb Analytics", 
-    page_icon="🏘️", 
+    page_title="Olist E-Commerce Intelligence", 
+    page_icon="📦", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-DB_PATH = 'airbnb_local.duckdb'
+DB_PATH = 'olist_local.duckdb'
 
-
-@st.cache_data(ttl="1h", show_spinner="Querying Lakehouse...")
-def load_data() -> pd.DataFrame:
-    """Fetches and preprocesses data from the DuckDB analytical backend."""
+@st.cache_data(ttl="1h", show_spinner="Fetching Order Statuses...")
+def get_available_statuses():
+    """Fetches the unique order statuses dynamically from the DB."""
     try:
-        # Senior best practice: Always connect BI tools in read-only mode
         with duckdb.connect(DB_PATH, read_only=True) as conn:
-            query = """
-                SELECT 
-                    review_id,
-                    listing_id,
-                    reviewer_name,
-                    review_date,
-                    review_text,
-                    review_sentiment,
-                    is_full_moon
-                FROM main.mart_fullmoon_reviews
-            """
+            query = "SELECT DISTINCT order_status FROM main_gold.fct_orders WHERE order_status IS NOT NULL"
             df = conn.execute(query).df()
-            
-        # Standardize column names to uppercase for consistent referencing
-        df.columns = [col.upper() for col in df.columns]
-        
-        # Precompute types and flags safely
-        df["REVIEW_DATE"] = pd.to_datetime(df["REVIEW_DATE"])
-        # Strict equality check prevents the substring bug
-        df["IS_FULL_MOON_FLAG"] = df["IS_FULL_MOON"].str.lower() == "full moon"
-        
-        return df
+            return df['order_status'].tolist()
+    except duckdb.Error:
+        # Fallback if db hasn't been initialized yet
+        return ["delivered", "shipped", "canceled", "invoiced", "processing", "unavailable", "approved"]
 
+def get_kpi_metrics(status_filter: list) -> dict:
+    """Calculates top-level metrics directly in DuckDB."""
+    if not status_filter:
+        return {"total_revenue": 0, "total_orders": 0, "avg_delivery": 0, "avg_basket": 0}
+        
+    placeholders = ", ".join(["?"] * len(status_filter))
+    query = f"""
+        SELECT 
+            SUM(calculated_order_cost) AS total_revenue,
+            COUNT(*) AS total_orders,
+            AVG(days_to_delivery) AS avg_delivery,
+            AVG(total_items_in_order) AS avg_basket
+        FROM main_gold.fct_orders
+        WHERE order_status IN ({placeholders})
+    """
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as conn:
+            result = conn.execute(query, status_filter).fetchone()
+    except duckdb.Error:
+        result = (0, 0, 0, 0)
+        
+    return {
+        "total_revenue": result[0] or 0,
+        "total_orders": result[1] or 0,
+        "avg_delivery": result[2] or 0,
+        "avg_basket": result[3] or 0
+    }
+
+def get_monthly_revenue_trends(status_filter: list) -> pd.DataFrame:
+    """Pre-aggregates monthly revenue in DuckDB for lightweight plotting."""
+    if not status_filter:
+        return pd.DataFrame()
+        
+    placeholders = ", ".join(["?"] * len(status_filter))
+    query = f"""
+        SELECT 
+            DATE_TRUNC('month', purchased_at) AS YearMonth,
+            SUM(calculated_order_cost) AS revenue
+        FROM main_gold.fct_orders
+        WHERE purchased_at IS NOT NULL
+          AND order_status IN ({placeholders})
+        GROUP BY 1
+        ORDER BY 1
+    """
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as conn:
+            df = conn.execute(query, status_filter).df()
+            if not df.empty:
+                df['YearMonth'] = pd.to_datetime(df['YearMonth'])
+            return df
+    except duckdb.Error:
+        return pd.DataFrame(columns=["YearMonth", "revenue"])
+
+def get_delivery_data(status_filter: list) -> pd.DataFrame:
+    """Fetches only the days to delivery column for distribution visualization."""
+    if not status_filter:
+        return pd.DataFrame()
+        
+    placeholders = ", ".join(["?"] * len(status_filter))
+    query = f"""
+        SELECT days_to_delivery
+        FROM main_gold.fct_orders
+        WHERE days_to_delivery IS NOT NULL
+          AND order_status IN ({placeholders})
+    """
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as conn:
+            df = conn.execute(query, status_filter).df()
+            return df
+    except duckdb.Error:
+        return pd.DataFrame(columns=["days_to_delivery"])
+
+def get_filtered_raw_data(status_filter: list) -> pd.DataFrame:
+    """Fetches only the raw data needed based on user filters."""
+    if not status_filter:
+        return pd.DataFrame()
+        
+    placeholders = ", ".join(["?"] * len(status_filter))
+    query = f"""
+        SELECT 
+            order_id AS ORDER_ID,
+            order_status AS ORDER_STATUS,
+            purchased_at AS PURCHASED_AT,
+            delivered_at AS DELIVERED_AT,
+            total_items_in_order AS TOTAL_ITEMS_IN_ORDER,
+            calculated_order_cost AS CALCULATED_ORDER_COST,
+            days_to_delivery AS DAYS_TO_DELIVERY
+        FROM main_gold.fct_orders
+        WHERE purchased_at IS NOT NULL 
+          AND order_status IN ({placeholders})
+        ORDER BY purchased_at DESC
+        LIMIT 1000
+    """
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as conn:
+            df = conn.execute(query, status_filter).df()
+            if not df.empty:
+                df["PURCHASED_AT"] = pd.to_datetime(df["PURCHASED_AT"])
+            return df
     except duckdb.Error as e:
         st.error(f"🚨 Fatal Error: Unable to connect to analytical backend. Details: {e}")
-        st.stop()
+        return pd.DataFrame()
 
-# ==========================================
-# CACHED COMPUTATION LAYER
-# ==========================================
-@st.cache_resource(show_spinner=False)
-def generate_wordcloud_figure(text_corpus: str) -> plt.Figure:
-    """Generates a matplotlib figure containing the wordcloud. 
-    Cached via st.cache_resource because matplotlib figures are not easily serializable."""
-    wordcloud = WordCloud(
-        width=800, 
-        height=400, 
-        background_color='#0E1117', # Matches Streamlit dark mode
-        colormap='Blues',
-        max_words=150
-    ).generate(text_corpus)
-    
-    fig, ax = plt.subplots(figsize=(8, 4), facecolor='#0E1117')
-    ax.imshow(wordcloud, interpolation='bilinear')
-    ax.axis("off")
-    # Ensure layout is tight to prevent weird whitespace in UI
-    plt.tight_layout(pad=0) 
-    return fig
 
-# ==========================================
-# UI COMPONENTS
-# ==========================================
-def render_sidebar_filters(df: pd.DataFrame) -> pd.DataFrame:
-    """Renders the sidebar and applies filters to the dataframe."""
-    st.sidebar.header("⚙️ Global Filters")
-
-    sentiment_filter = st.sidebar.multiselect(
-        "Review Sentiment",
-        options=df["REVIEW_SENTIMENT"].unique(),
-        default=list(df["REVIEW_SENTIMENT"].unique())
-    )
-
-    full_moon_filter = st.sidebar.radio(
-        "Lunar Phase Filter",
-        options=["All Dates", "Full Moon Only", "Regular Dates Only"]
-    )
-
-    min_date = df["REVIEW_DATE"].min().date()
-    max_date = df["REVIEW_DATE"].max().date()
-    
-    date_range = st.sidebar.date_input(
-        "Date Range",
-        value=(min_date, max_date),
-        min_value=min_date,
-        max_value=max_date
-    )
-
-    # Apply Filtering Logic
-    filtered_df = df[df["REVIEW_SENTIMENT"].isin(sentiment_filter)]
-
-    if full_moon_filter == "Full Moon Only":
-        filtered_df = filtered_df[filtered_df["IS_FULL_MOON_FLAG"]]
-    elif full_moon_filter == "Regular Dates Only":
-        filtered_df = filtered_df[~filtered_df["IS_FULL_MOON_FLAG"]]
-
-    # Ensure date range has two values before filtering to prevent index errors
-    if len(date_range) == 2:
-        filtered_df = filtered_df[
-            (filtered_df["REVIEW_DATE"].dt.date >= date_range[0]) &
-            (filtered_df["REVIEW_DATE"].dt.date <= date_range[1])
-        ]
-
-    return filtered_df
-
-def render_kpi_metrics(df: pd.DataFrame):
-    """Renders the top-level KPI metrics."""
+def render_kpi_metrics(kpis: dict):
+    """Renders top-level E-commerce KPIs."""
     cols = st.columns(4)
-    cols[0].metric("Total Reviews", f"{len(df):,}")
-    cols[1].metric("Unique Listings", f"{df['LISTING_ID'].nunique():,}")
-    cols[2].metric("Unique Reviewers", f"{df['REVIEWER_NAME'].nunique():,}")
-    cols[3].metric("Full Moon Events", f"{df['IS_FULL_MOON_FLAG'].sum():,}")
+    cols[0].metric("Total Revenue", f"${kpis['total_revenue']:,.2f}")
+    cols[1].metric("Total Orders", f"{kpis['total_orders']:,}")
+    cols[2].metric("Avg Days to Delivery", f"{kpis['avg_delivery']:.1f} Days")
+    cols[3].metric("Avg Basket Size", f"{kpis['avg_basket']:.1f} Items")
 
-# ==========================================
-# MAIN APPLICATION
-# ==========================================
+
 def main():
-    st.title("🏘️ Airbnb Review Intelligence")
-    st.markdown("Automated sentiment tracking and lunar pattern analysis over listing reviews.")
+    st.title("📦 Olist Logistics & Revenue Intelligence")
+    st.markdown("Automated tracking of order volume, revenue, and delivery SLAs.")
     
-    # 1. Load Data
-    raw_df = load_data()
+    # Sidebar Filters
+    st.sidebar.header("⚙️ Global Filters")
     
-    # 2. Render Sidebar & Filter Data
-    df = render_sidebar_filters(raw_df)
+    available_statuses = get_available_statuses()
+    default_status = ["delivered"] if "delivered" in available_statuses else available_statuses
     
-    if df.empty:
-        st.warning("⚠️ No data available for the selected filters.")
+    status_filter = st.sidebar.multiselect(
+        "Order Status",
+        options=available_statuses,
+        default=default_status
+    )
+    
+    if not status_filter:
+        st.warning("⚠️ Please select at least one order status to view data.")
         st.stop()
         
-    # 3. Render Top KPIs
-    render_kpi_metrics(df)
+    # 1. Fetch lightweight aggregated KPIs
+    kpis = get_kpi_metrics(status_filter)
+    render_kpi_metrics(kpis)
     st.divider()
 
-    # 4. Render Tabbed Interface
-    tab_trends, tab_nlp, tab_raw = st.tabs(["📈 Market Trends", "💬 NLP & Sentiment", "🗄️ Raw Data Warehouse"])
+    tab_trends, tab_logistics, tab_raw = st.tabs(["📈 Revenue Trends", "🚚 Logistics SLAs", "🗄️ Raw Gold Data"])
 
     with tab_trends:
-        st.subheader("Review Volume Over Time")
-        time_series = df.copy()
-        time_series["YearMonth"] = time_series["REVIEW_DATE"].dt.to_period("M").dt.to_timestamp()
-        monthly_counts = time_series.groupby("YearMonth").size().reset_index(name="Count")
-
-        # Upgraded Altair chart with tooltips and clean UI
-        line_chart = alt.Chart(monthly_counts).mark_area(
-            line={'color':'#1f77b4'},
-            color=alt.Gradient(
-                gradient='linear',
-                stops=[alt.GradientStop(color='#1f77b4', offset=0),
-                       alt.GradientStop(color='transparent', offset=1)],
-                x1=1, x2=1, y1=1, y2=0
-            ),
-            opacity=0.6
-        ).encode(
-            x=alt.X("YearMonth:T", title="Date", axis=alt.Axis(grid=False)),
-            y=alt.X("Count:Q", title="Number of Reviews", axis=alt.Axis(grid=True)),
-            tooltip=[alt.Tooltip("YearMonth:T", title="Month", format="%B %Y"), 
-                     alt.Tooltip("Count:Q", title="Reviews")]
-        ).properties(height=400)
+        st.subheader("Monthly Revenue")
         
-        st.altair_chart(line_chart, use_container_width=True)
-
-    with tab_nlp:
-        col_bar, col_cloud = st.columns([1, 1])
+        # 2. Fetch lightweight aggregated trend data
+        monthly_rev = get_monthly_revenue_trends(status_filter)
         
-        with col_bar:
-            st.subheader("Sentiment Distribution")
-            sentiment_counts = df["REVIEW_SENTIMENT"].value_counts().reset_index()
-            sentiment_counts.columns = ["Sentiment", "Volume"]
+        if not monthly_rev.empty:
+            line_chart = alt.Chart(monthly_rev).mark_area(
+                line={'color':'#2ca02c'},
+                color=alt.Gradient(
+                    gradient='linear',
+                    stops=[alt.GradientStop(color='#2ca02c', offset=0), alt.GradientStop(color='transparent', offset=1)],
+                    x1=1, x2=1, y1=1, y2=0
+                ),
+                opacity=0.6
+            ).encode(
+                x=alt.X("YearMonth:T", title="Date"),
+                y=alt.Y("revenue:Q", title="Revenue ($)"),
+                tooltip=[
+                    alt.Tooltip("YearMonth:T", title="Month", format="%B %Y"), 
+                    alt.Tooltip("revenue:Q", title="Revenue", format="$,.2f")
+                ]
+            ).properties(height=400)
+            
+            st.altair_chart(line_chart, use_container_width=True)
+        else:
+            st.info("No revenue data to display for the selected filters.")
 
-            bar_chart = alt.Chart(sentiment_counts).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
-                x=alt.X("Sentiment:N", sort='-y', axis=alt.Axis(labelAngle=0)),
-                y=alt.Y("Volume:Q", title="Total Reviews"),
-                color=alt.Color("Sentiment:N", legend=None, scale=alt.Scale(scheme='tableau10')),
-                tooltip=["Sentiment", "Volume"]
-            ).properties(height=350)
-            st.altair_chart(bar_chart, use_container_width=True)
+    with tab_logistics:
+        st.subheader("Delivery Time Distribution")
+        
+        # Fetch just the delivery days column
+        delivery_df = get_delivery_data(status_filter)
+        
+        if not delivery_df.empty:
+            hist_chart = alt.Chart(delivery_df).mark_bar(color='#ff7f0e').encode(
+                x=alt.X("days_to_delivery:Q", bin=alt.Bin(maxbins=30), title="Days to Delivery"),
+                y=alt.Y("count():Q", title="Number of Orders"),
+                tooltip=["count()"]
+            ).properties(height=400)
             
-        with col_cloud:
-            st.subheader("Keyword Extraction")
-            # Create sub-tabs for the wordclouds so they don't take up the whole page
-            sentiments = df["REVIEW_SENTIMENT"].dropna().unique()
-            cloud_tabs = st.tabs([s.capitalize() for s in sentiments])
-            
-            for i, sentiment in enumerate(sentiments):
-                with cloud_tabs[i]:
-                    text_corpus = " ".join(df[df["REVIEW_SENTIMENT"] == sentiment]["REVIEW_TEXT"].dropna().astype(str))
-                    if text_corpus.strip():
-                        # Call the cached function instead of generating on the fly
-                        fig = generate_wordcloud_figure(text_corpus)
-                        st.pyplot(fig)
-                    else:
-                        st.info("Insufficient textual data for this sentiment.")
+            st.altair_chart(hist_chart, use_container_width=True)
+        else:
+            st.info("No delivery data to display for the selected filters.")
 
     with tab_raw:
-        st.subheader("Granular Review Extracts")
-        st.dataframe(
-            df[[
-                "REVIEW_DATE",
-                "REVIEW_ID",
-                "LISTING_ID",
-                "REVIEW_SENTIMENT",
-                "IS_FULL_MOON",
-                "REVIEW_TEXT"
-            ]].sort_values(by="REVIEW_DATE", ascending=False),
-            use_container_width=True,
-            hide_index=True
-        )
+        st.subheader("Gold Layer Fact Table")
+        
+        # Fetch limited raw data
+        raw_df = get_filtered_raw_data(status_filter)
+        if not raw_df.empty:
+            st.dataframe(raw_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No raw data to display.")
 
 if __name__ == "__main__":
     main()

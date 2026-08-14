@@ -1,6 +1,7 @@
-airbnb_prod:
+olist_prod:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: airbnb_local.duckdb
+      path: olist_local.duckdb
+      schema: main
