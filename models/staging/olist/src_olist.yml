@@ -2,8 +2,9 @@ version: 2
 
 sources:
   - name: olist
+    schema: main
     meta:
-      external_location: "C:/Users/Admin/Downloads/olistdata/{name}.csv"  # Point this to where your Olist raw files sit
+      external_location: "data/{name}.csv"
     tables:
       - name: olist_orders_dataset
       - name: olist_products_dataset

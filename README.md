@@ -1,31 +1,39 @@
-# Olist E-Commerce Data Platform: Medallion Architecture
+# 📦 Olist E-Commerce Lakehouse & BI Platform
 
-An enterprise-grade, local Lakehouse pipeline transforming raw Brazilian e-commerce data into actionable logistics and sales intelligence. 
+An end-to-end, local data engineering and analytics platform built on the Brazilian E-Commerce public dataset. This project processes raw transactional records through a Medallion Architecture using **DuckDB** and **dbt**, serving interactive logistics and revenue insights via **Streamlit** and **Altair**.
 
-This project demonstrates scalable data modeling practices by processing 100k+ multi-grain records into a cohesive Medallion architecture (Bronze -> Silver -> Gold) using DuckDB as a fast, localized compute engine prior to cloud deployment.
+---
 
-## 🏗️ Architecture & Tech Stack
-* **Compute Engine / Warehouse:** DuckDB (Local, In-Memory Lakehouse)
-* **Data Transformation:** dbt (Data Build Tool)
-* **Visualization Layer:** Streamlit, Altair
-* **Language:** Python, SQL
+### Key Engineering Highlights
+* **Medallion Architecture:**
+  * `Staging (Silver)`: Materialized as views; cleans Portuguese naming conventions, casts timestamp datatypes, and normalizes schema structures.
+  * `Intermediate (Silver)`: Materialized as ephemeral CTEs; resolves complex multi-grain relationships (e.g., aggregating line items and payment methods to a strict 1-row-per-order grain) to avoid join fan-outs.
+  * `Mart (Gold)`: Materialized as persistent analytical tables (`fct_orders`) containing SLA metrics (days to delivery) and financial metrics (GMV, basket sizes).
+* **Data Quality & Testing:** Enforces schema integrity, primary key uniqueness, and accepted values using `dbt_utils`, `dbt_expectations`, and `dbt_date`.
+* **Pushdown Query Engine:** Streamlit queries DuckDB directly with read-only locks, offloading KPI aggregations and time-series rollups to DuckDB's vectorized engine rather than loading large DataFrames into memory.
 
-## 🚀 Engineering Highlights
-This project was built to solve common enterprise data engineering challenges, specifically focusing on resolving one-to-many relationships before they hit the visualization layer.
+---
 
-* **Grain Resolution (Avoiding Fan-Outs):** Implemented an intermediate `silver` layer to pre-aggregate line items and split payment methods (credit card, boleto, vouchers) to a strict `one-row-per-order` grain before joining to the master fact table.
-* **Medallion Architecture:** 
-  * `Staging (Silver):` Cleaned Portuguese column names, casted data types, and managed NULL timestamps.
-  * `Intermediate (Silver):` Handled complex group-by logic and metric rollups.
-  * `Mart (Gold):` Produced `fct_orders`, enriched with calculated SLAs (Days to Delivery) and GMV metrics.
-* **Automated Data Quality:** Integrated `schema.yml` testing to assert primary key uniqueness and enforce strict `accepted_values` on shifting order statuses.
-* **Read-Only Analytics:** The Streamlit BI layer connects to the DuckDB instance exclusively in read-only mode, mimicking production-grade concurrent access limits.
+## 🛠️ Tech Stack
 
-## 🛠️ How to Run Locally
+* **Compute & Storage:** [DuckDB](https://duckdb.org/)
+* **Transformation & Testing:** [dbt (data build tool)](https://www.getdbt.com/) (`dbt-core`, `dbt-duckdb`)
+* **Dashboard & Visualizations:** [Streamlit](https://streamlit.io/), [Altair](https://altair-viz.github.io/)
+* **Language & Orchestration:** Python, SQL, Make
 
-Because this project uses DuckDB, you do not need any Snowflake or Azure cloud credentials to run this pipeline. Everything executes instantly on your local machine.
+---
 
-### 1. Environment Setup
-```bash
-# Install dependencies (dbt-core, dbt-duckdb, streamlit, etc.)
-make install
+## 📁 Repository Structure
+
+```plaintext
+├── models/                     # dbt transformation models
+│   ├── staging/                # Bronze -> Silver views
+│   ├── intermediate/           # Silver ephemeral grain rollups
+│   └── mart/                   # Gold analytical tables (fct_orders)
+├── dbt_project.yml             # dbt configuration & materialization rules
+├── packages.yml                # dbt packages (dbt_utils, dbt_expectations, dbt_date)
+├── profiles.yml                # DuckDB local target connection
+├── Streamlit.py                # BI application with query pushdown
+├── Makefile                    # Project build automation
+├── requirements.txt            # Python dependencies
+└── README.md
